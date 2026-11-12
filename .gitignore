@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local databases / logs
+*.log
+*.sqlite3
+
+# Later phases
+deploy/.secrets/
+charts/**/values.local.yaml
+
+# Secrets that might sneak in
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.yaml
+*.sql.bak
+*.dump
