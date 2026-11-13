@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/* Base reset that Tailwind v4 no longer injects */
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-950 text-slate-100 antialiased;
+}
