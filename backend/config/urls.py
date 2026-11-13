@@ -5,6 +5,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
     path("", include("core.urls")),
+    path("api/v1/", include("monitors.api.urls")),
 ]
 
 if settings.ENABLE_ADMIN:
