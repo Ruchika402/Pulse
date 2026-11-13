@@ -2,12 +2,15 @@ import time
 from dataclasses import dataclass
 
 import httpx
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
 from monitors.models import CheckResult, Monitor
 from monitors.services.urlguard import SSRFError, validate_url
+from realtime.events import check_event, status_change_event
 
 
 @dataclass
@@ -20,19 +23,13 @@ class CheckOutcome:
 
 
 async def perform_check(url: str) -> CheckOutcome:
-    """
-    Async HTTP check. Validates SSRF, makes the request, and returns the outcome.
-    """
     try:
         safe_url = validate_url(url)
     except SSRFError:
         return CheckOutcome(False, None, None, "blocked", None)
 
     start = time.monotonic()
-
-    # httpx allows pinning to a specific IP while passing the real Host header
     transport = httpx.AsyncHTTPTransport(local_address=safe_url.resolved_ip)
-
     headers = {
         "User-Agent": "PulsePortfolioBot/1.0 (+https://github.com/Ruchika402/Pulse)",
         "Host": safe_url.host_header,
@@ -42,17 +39,12 @@ async def perform_check(url: str) -> CheckOutcome:
         async with httpx.AsyncClient(
             transport=transport,
             timeout=httpx.Timeout(10.0, connect=5.0),
-            follow_redirects=False,  # We handle redirects manually later
+            follow_redirects=False,
         ) as client:
-            # For HTTPS, we pass the sni_hostname so the cert matches the real name
             ext = {"sni_hostname": safe_url.host_header} if safe_url.is_https else {}
-
             response = await client.get(safe_url.original_url, headers=headers, extensions=ext)
-
             latency_ms = int((time.monotonic() - start) * 1000)
             http_version = response.http_version
-
-            # Classify 2xx and 3xx as OK
             ok = 200 <= response.status_code < 400
 
             error_kind = None
@@ -79,14 +71,14 @@ async def perform_check(url: str) -> CheckOutcome:
 
 
 def record_result(monitor_id: int, outcome: CheckOutcome):
-    """
-    Sync function that saves the result and handles the status flip using optimistic locking.
-    """
+    channel_layer = get_channel_layer()
+    event_data = None
+    status_change_data = None
+
     with transaction.atomic():
-        # Fetch the latest monitor state
         monitor = Monitor.objects.select_for_update().get(id=monitor_id)
 
-        # Save the CheckResult
+        # 1. Save the CheckResult
         CheckResult.objects.create(
             monitor=monitor,
             ok=outcome.ok,
@@ -97,13 +89,23 @@ def record_result(monitor_id: int, outcome: CheckOutcome):
             checked_by="local-worker",
         )
 
-        # Determine new status
+        # 2. Determine new status & handle optimistic locking
         new_status = Monitor.Status.UP if outcome.ok else Monitor.Status.DOWN
+        old_status = monitor.status
 
         # Only flip if status actually changed
-        if monitor.status != new_status:
+        if old_status != new_status:
             monitor.status = new_status
             monitor.status_since = timezone.now()
+
+            # Fire the status_change event
+            status_change_data = status_change_event(
+                monitor_id=monitor.id,
+                seq=monitor.seq + 1,
+                from_status=old_status,
+                to_status=new_status,
+                since=monitor.status_since.isoformat(),
+            )
 
         if outcome.ok:
             monitor.consecutive_failures = 0
@@ -115,5 +117,25 @@ def record_result(monitor_id: int, outcome: CheckOutcome):
         monitor.next_check_at = timezone.now() + timezone.timedelta(
             seconds=monitor.interval_seconds
         )
-
         monitor.save()
+
+        # 3. Prepare the check event
+        event_data = check_event(
+            monitor_id=monitor.id,
+            seq=monitor.seq,
+            time=timezone.now().isoformat(),
+            ok=outcome.ok,
+            status_code=outcome.status_code,
+            latency_ms=outcome.latency_ms,
+            error_kind=outcome.error_kind,
+        )
+
+    # 4. Publish to the group (Outside the transaction)
+    if event_data:
+        async_to_sync(channel_layer.group_send)(
+            f"mon_{monitor_id}", {"type": "monitor.event", "data": event_data}
+        )
+    if status_change_data:
+        async_to_sync(channel_layer.group_send)(
+            f"mon_{monitor_id}", {"type": "monitor.event", "data": status_change_data}
+        )

@@ -105,13 +105,6 @@ CACHES = {
     }
 }
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [REDIS_URL]},
-    }
-}
-
 # DRF
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -174,6 +167,25 @@ ENABLE_ADMIN = env("ENABLE_ADMIN")
 FEATURE_ALERTS = env("FEATURE_ALERTS")
 FEATURE_BADGE = env("FEATURE_BADGE")
 FEATURE_SSE_FALLBACK = env("FEATURE_SSE_FALLBACK")
+
+# Channel layers configuration (must come AFTER PULSE_MODE is defined)
+if PULSE_MODE == "cluster":
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_URL],
+                "capacity": 100,
+                "expiry": 10,
+            },
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 # Structured logging (basic; refined in Phase 10)
 LOGGING = {
