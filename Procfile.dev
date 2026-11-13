@@ -1,0 +1,4 @@
+web: cd backend && uv run uvicorn config.asgi:application --reload --port 8000
+worker: cd backend && uv run celery -A config worker --loglevel=info
+beat: cd backend && uv run celery -A config beat --loglevel=info
+ui: cd frontend && npm run dev
