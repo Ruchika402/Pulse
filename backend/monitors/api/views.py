@@ -1,10 +1,11 @@
 from django.conf import settings
+from django.db.models import OuterRef, Subquery
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 
 from monitors.api.permissions import HasVisitorId
 from monitors.api.serializers import MonitorSerializer
-from monitors.models import Monitor, Subscription
+from monitors.models import CheckResult, Monitor, Subscription
 from monitors.services.urlguard import validate_url
 
 
@@ -15,9 +16,19 @@ class MonitorViewSet(viewsets.ModelViewSet):
     lookup_field = "slug"
 
     def get_queryset(self):
-        # Return only monitors this visitor is subscribed to
         visitor_id = self.request.visitor_id
-        return Monitor.objects.filter(subscriptions__visitor_id=visitor_id).order_by("-created_at")
+
+        # Get the latest check for each monitor
+        latest_check = CheckResult.objects.filter(monitor=OuterRef("pk")).order_by("-time")
+
+        return (
+            Monitor.objects.filter(subscriptions__visitor_id=visitor_id)
+            .annotate(
+                latest_status_code=Subquery(latest_check.values("status_code")[:1]),
+                latest_latency=Subquery(latest_check.values("latency_ms")[:1]),
+            )
+            .order_by("-created_at")
+        )
 
     def create(self, request, *args, **kwargs):
         # 1. Check total caps
