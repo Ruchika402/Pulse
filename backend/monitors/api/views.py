@@ -1,11 +1,13 @@
 from django.conf import settings
 from django.db.models import OuterRef, Subquery
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from monitors.api.permissions import HasVisitorId
 from monitors.api.serializers import MonitorSerializer
 from monitors.models import CheckResult, Monitor, Subscription
+from monitors.services.uptime import get_uptime_stats
 from monitors.services.urlguard import validate_url
 
 
@@ -70,3 +72,17 @@ class MonitorViewSet(viewsets.ModelViewSet):
             instance.delete()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["get"])
+    def uptime(self, request, slug=None):
+        monitor = self.get_object()
+        range_param = request.query_params.get("range", "24h")
+
+        # Map range to hours
+        ranges = {"1h": 1, "24h": 24, "30d": 24 * 30, "90d": 24 * 90}
+        hours = ranges.get(range_param, 24)
+
+        stats = get_uptime_stats(monitor.id, hours)
+        return Response(
+            {"monitor_id": monitor.id, "slug": monitor.slug, "range": range_param, **stats}
+        )

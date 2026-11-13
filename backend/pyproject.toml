@@ -42,4 +42,5 @@ dev = [
     "pytest-django>=4.14.0",
     "respx>=0.23.1",
     "ruff>=0.17.5",
+    "websockets>=17.4",
 ]

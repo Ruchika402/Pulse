@@ -1494,6 +1494,7 @@ dev = [
     { name = "pytest-django" },
     { name = "respx" },
     { name = "ruff" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -1528,6 +1529,7 @@ dev = [
     { name = "pytest-django", specifier = ">=4.14.0" },
     { name = "respx", specifier = ">=0.23.1" },
     { name = "ruff", specifier = ">=0.17.5" },
+    { name = "websockets", specifier = ">=17.4" },
 ]
 
 [[package]]

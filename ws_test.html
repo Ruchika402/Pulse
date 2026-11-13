@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head><title>Pulse WS Test</title></head>
+<body>
+    <h1>Pulse WebSocket Test</h1>
+    <button id="connect">Connect & Subscribe</button>
+    <pre id="log" style="background: #111; color: #0f0; padding: 10px; min-height: 200px;">Log output will appear here...</pre>
+
+    <script>
+        let ws;
+        const log = document.getElementById('log');
+        document.getElementById('connect').onclick = () => {
+            if (ws) ws.close();
+            ws = new WebSocket('ws://127.0.0.1:8000/ws/v1/status/');
+            
+            ws.onopen = () => {
+                log.innerText += "Connected!\n";
+                // REPLACE '9DmxVt9trx0' with your actual monitor slug
+                ws.send(JSON.stringify({
+                    type: "subscribe",
+                    visitor_id: "123e4567-e89b-12d3-a456-426614174000",
+                    slugs: ["9DmxVt9trx0"] 
+                }));
+            };
+            ws.onmessage = (e) => { log.innerText += "Received: " + e.data + "\n"; };
+            ws.onerror = (e) => { log.innerText += "Error: " + e + "\n"; };
+            ws.onclose = () => { log.innerText += "Connection closed.\n"; };
+        };
+    </script>
+</body>
+</html>
