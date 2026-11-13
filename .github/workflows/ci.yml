@@ -13,7 +13,6 @@ jobs:
       run:
         working-directory: ./backend
     
-   
     services:
       postgres:
         image: postgres:18
@@ -25,6 +24,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -51,14 +59,16 @@ jobs:
 
       - name: Django check
         env:
-          SECRET_KEY: ${{ secrets.GITHUB_TOKEN }} 
+          SECRET_KEY: ${{ secrets.GITHUB_TOKEN }}
           DATABASE_URL: postgresql://pulse_ci:pulse_ci_password@localhost:5432/pulse_ci
+          REDIS_URL: redis://localhost:6379/0
         run: uv run python manage.py check
 
       - name: Check for missing migrations
         env:
           SECRET_KEY: ${{ secrets.GITHUB_TOKEN }}
           DATABASE_URL: postgresql://pulse_ci:pulse_ci_password@localhost:5432/pulse_ci
+          REDIS_URL: redis://localhost:6379/0
         run: uv run python manage.py makemigrations --check --dry-run
 
   frontend:
