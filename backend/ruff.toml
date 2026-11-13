@@ -1,0 +1,7 @@
+target-version = "py312"
+line-length = 100
+exclude = ["migrations"]
+
+[lint]
+select = ["E", "F", "I", "B", "UP", "DJ"]
+ignore = ["RUF012", "DJ001"]  # DJ001: we want null=True for DB-level empty strings
