@@ -2,7 +2,6 @@ import time
 from dataclasses import dataclass
 
 import httpx
-from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db import transaction
 from django.db.models import F
@@ -24,7 +23,7 @@ class CheckOutcome:
 
 async def perform_check(url: str) -> CheckOutcome:
     try:
-        safe_url = validate_url(url)
+        safe_url = await validate_url(url)
     except SSRFError:
         return CheckOutcome(False, None, None, "blocked", None)
 
@@ -78,7 +77,6 @@ def record_result(monitor_id: int, outcome: CheckOutcome):
     with transaction.atomic():
         monitor = Monitor.objects.select_for_update().get(id=monitor_id)
 
-        # 1. Save the CheckResult
         CheckResult.objects.create(
             monitor=monitor,
             ok=outcome.ok,
@@ -89,18 +87,15 @@ def record_result(monitor_id: int, outcome: CheckOutcome):
             checked_by="local-worker",
         )
 
-        # 2. Determine new status & handle optimistic locking
         new_status = Monitor.Status.UP if outcome.ok else Monitor.Status.DOWN
         old_status = monitor.status
 
-        # Only flip if status actually changed
         if old_status != new_status:
             monitor.status = new_status
             monitor.status_since = timezone.now()
 
-            # Fire the status_change event
             status_change_data = status_change_event(
-                monitor_id=monitor.id,
+                slug=monitor.slug,
                 seq=monitor.seq + 1,
                 from_status=old_status,
                 to_status=new_status,
@@ -119,9 +114,8 @@ def record_result(monitor_id: int, outcome: CheckOutcome):
         )
         monitor.save()
 
-        # 3. Prepare the check event
         event_data = check_event(
-            monitor_id=monitor.id,
+            slug=monitor.slug,
             seq=monitor.seq,
             time=timezone.now().isoformat(),
             ok=outcome.ok,
@@ -130,12 +124,15 @@ def record_result(monitor_id: int, outcome: CheckOutcome):
             error_kind=outcome.error_kind,
         )
 
-    # 4. Publish to the group (Outside the transaction)
     if event_data:
+        from asgiref.sync import async_to_sync
+
         async_to_sync(channel_layer.group_send)(
-            f"mon_{monitor_id}", {"type": "monitor.event", "data": event_data}
+            f"mon_{monitor.id}", {"type": "monitor.event", "data": event_data}
         )
     if status_change_data:
+        from asgiref.sync import async_to_sync
+
         async_to_sync(channel_layer.group_send)(
-            f"mon_{monitor_id}", {"type": "monitor.event", "data": status_change_data}
+            f"mon_{monitor.id}", {"type": "monitor.event", "data": status_change_data}
         )

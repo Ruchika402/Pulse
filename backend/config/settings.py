@@ -91,9 +91,11 @@ DATABASES = {
     "default": env.db("DATABASE_URL"),
 }
 DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
-DATABASES["default"]["OPTIONS"] = {
-    "pool": {"min_size": 2, "max_size": 5},
-}
+
+if env("PULSE_MODE") == "cluster" or not env("DEBUG"):
+    DATABASES["default"]["OPTIONS"] = {
+        "pool": {"min_size": 2, "max_size": 5},
+    }
 
 # Redis (cache + Channels layer + Celery broker later)
 REDIS_URL = env("REDIS_URL")

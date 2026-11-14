@@ -1,5 +1,6 @@
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
+from django.core.cache import cache
 from django.utils import timezone
 
 from monitors.models import CheckResult, Monitor, Subscription
@@ -17,10 +18,8 @@ class StatusConsumer(AsyncJsonWebsocketConsumer):
 
     async def receive_json(self, content, **kwargs):
         msg_type = content.get("type")
-        if msg_type == "subscribe":
+        if msg_type in ("subscribe", "resync"):
             await self.handle_subscribe(content)
-        elif msg_type == "resync":
-            await self.handle_subscribe(content)  # Just re-send snapshots
 
     async def handle_subscribe(self, content):
         visitor_id = content.get("visitor_id")
@@ -29,6 +28,7 @@ class StatusConsumer(AsyncJsonWebsocketConsumer):
         monitors = await self.get_allowed_monitors(visitor_id, slugs)
 
         for monitor in monitors:
+            # Join the group using the database ID
             group_name = f"mon_{monitor['id']}"
 
             if group_name not in self.groups_joined:
@@ -38,7 +38,7 @@ class StatusConsumer(AsyncJsonWebsocketConsumer):
             # Update last_viewed_at
             await self.update_last_viewed(monitor["id"])
 
-            # Send the snapshot
+            # Send the snapshot (which contains the slug)
             await self.send_json(monitor["snapshot"])
 
     @database_sync_to_async
@@ -52,25 +52,31 @@ class StatusConsumer(AsyncJsonWebsocketConsumer):
                     visitor_id
                     and Subscription.objects.filter(monitor=monitor, visitor_id=visitor_id).exists()
                 )
-                # Since the slug is the share key, we currently allow it if it exists.
+
                 if is_allowed or slug:
+                    cache_key = f"status:{monitor.id}"
+                    cached_status = cache.get(cache_key)
+
+                    if not cached_status:
+                        cached_status = {
+                            "status": monitor.status,
+                            "status_since": monitor.status_since.isoformat(),
+                        }
+
                     # Get last 60 points
                     points = list(
                         CheckResult.objects.filter(monitor=monitor)
                         .order_by("-time")
                         .values("time", "latency_ms", "ok")[:60]
                     )
-                    # Reverse to chronological order
                     points.reverse()
-
-                    # Format times as ISO strings
                     for p in points:
                         p["time"] = p["time"].isoformat()
 
+                    # Pass slug to the snapshot builder
                     snapshot = snapshot_event(
-                        monitor_id=monitor.id,
                         slug=monitor.slug,
-                        status=monitor.status,
+                        status=cached_status["status"],
                         latency_ms=points[-1]["latency_ms"] if points else None,
                         last_60_points=points,
                     )
@@ -84,4 +90,5 @@ class StatusConsumer(AsyncJsonWebsocketConsumer):
         Monitor.objects.filter(id=monitor_id).update(last_viewed_at=timezone.now())
 
     async def monitor_event(self, event):
+        # Forward the event to the client
         await self.send_json(event["data"])

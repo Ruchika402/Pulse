@@ -1,8 +1,9 @@
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
-from django.db import transaction
+from django.db import close_old_connections, transaction
 from django.db.models import DurationField, ExpressionWrapper, F, Value
 from django.db.models.functions import Now
 
@@ -12,13 +13,29 @@ from monitors.services.checker import perform_check, record_result
 logger = logging.getLogger(__name__)
 
 
+def run_single_check_sync(monitor_id: int, url: str):
+    try:
+        # 1. Close any stale DB connections before we start the network request
+        close_old_connections()
+
+        # 2. Run HTTP check (Async)
+        outcome = asyncio.run(perform_check(url))
+
+        # 3. Close connections again before saving to DB
+        close_old_connections()
+
+        # 4. Save to DB & Broadcast
+        record_result(monitor_id, outcome)
+
+    except Exception as e:
+        logger.error(f"Check failed for monitor {monitor_id}: {e}")
+    finally:
+        # 5. Ensure the connection is released back to the OS
+        close_old_connections()
+
+
 def dispatch_due() -> list[int]:
-    """
-    Claims monitors that are due for a check and moves their next_check_at forward.
-    Returns the list of monitor IDs that were claimed.
-    """
     with transaction.atomic():
-        # Claim up to 200 monitors using skip_locked
         due_monitors = list(
             Monitor.objects.select_for_update(skip_locked=True)
             .filter(active=True, next_check_at__lte=Now())
@@ -31,7 +48,6 @@ def dispatch_due() -> list[int]:
 
         ids = [m[0] for m in due_monitors]
 
-        # Move the clock forward for the claimed monitors
         Monitor.objects.filter(id__in=ids).update(
             next_check_at=Now()
             + ExpressionWrapper(
@@ -40,14 +56,9 @@ def dispatch_due() -> list[int]:
             )
         )
 
-    # Fire the checks concurrently outside the transaction
-    # For now, we use asyncio.run to block until they finish.
-    # Later, Celery will handle this asynchronously.
-    for monitor_id, _interval, url in due_monitors:
-        try:
-            outcome = asyncio.run(perform_check(url))
-            record_result(monitor_id, outcome)
-        except Exception as e:
-            logger.error(f"Check failed for monitor {monitor_id}: {e}")
+    # Run checks concurrently in threads
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        for monitor_id, _interval, url in due_monitors:
+            executor.submit(run_single_check_sync, monitor_id, url)
 
     return ids

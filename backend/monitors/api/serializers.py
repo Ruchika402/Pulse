@@ -17,6 +17,7 @@ class MonitorSerializer(serializers.ModelSerializer):
             "last_viewed_at",
             "created_at",
         ]
+
         read_only_fields = [
             "slug",
             "host",
@@ -27,12 +28,8 @@ class MonitorSerializer(serializers.ModelSerializer):
         ]
 
     def validate_url(self, value):
-        # 1. Run the SSRF Guard
         try:
             validate_url(value)
         except SSRFError as e:
             raise serializers.ValidationError(str(e)) from e
-
-        # 2. Normalize the URL
-        # Assuming https:// if no scheme is provided (handled by URLField validation)
         return value

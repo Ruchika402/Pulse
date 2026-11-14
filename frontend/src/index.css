@@ -1,10 +1,41 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+
 @import "tailwindcss";
 
-/* Base reset that Tailwind v4 no longer injects */
+@theme {
+  --color-page: #06110E;
+  --color-chrome: #091812;
+  --color-card: #0D1F19;
+  --color-field: #0A1713;
+  --color-line: #17382E;
+  --color-edge: #1F5A46;
+  --color-ink: #E6F6EE;
+  --color-soft: #BFE3D3;
+  --color-muted: #8FB3A4;
+  --color-mint: #5EE6A8;
+  --color-onmint: #04130D;
+  --color-upbg: #11382B;
+  --color-downbg: #3A1618;
+  --color-downfg: #FF8A8A;
+  --color-fail: #FF6B6B;
+  --color-cell: #3FBF8C;
+  --color-amber: #E3A63A;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", serif;
+
+  --radius-card: 16px;
+  --radius-hero: 20px;
+}
+
 html, body, #root {
   height: 100%;
 }
 
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  @apply bg-page text-ink antialiased;
 }
