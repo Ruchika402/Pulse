@@ -6,11 +6,11 @@ type HistoryResponse = {
 };
 
 const colour = (u: number | null) => {
-  if (u === null) return "#17382E"; // No data
-  if (u < 95) return "#FF6B6B";     // Red
-  if (u < 99) return "#E3A63A";     // Amber
-  if (u < 99.9) return "#8ADFB9";   // Light green
-  return "#3FBF8C";                 // Green
+  if (u === null) return "#17382E";
+  if (u < 95) return "#FF6B6B";
+  if (u < 99) return "#E3A63A";
+  if (u < 99.9) return "#8ADFB9";
+  return "#3FBF8C";
 };
 
 export function UptimeBar({ slug, range = "90d" }: { slug: string; range?: string }) {
@@ -20,6 +20,7 @@ export function UptimeBar({ slug, range = "90d" }: { slug: string; range?: strin
     enabled: !!slug,
   });
 
+  // If no data, show empty state
   if (!data || data.buckets.length === 0) {
     return (
       <div className="flex h-7.5 gap-0.5 overflow-hidden rounded bg-field">
@@ -33,7 +34,7 @@ export function UptimeBar({ slug, range = "90d" }: { slug: string; range?: strin
   return (
     <div 
       role="img" 
-      aria-label={`Uptime for the last ${data.buckets.length} buckets`}
+      aria-label={`Uptime for the last ${data.buckets.length} days`}
       className="flex h-7.5 gap-0.5 overflow-hidden rounded bg-field"
     >
       {data.buckets.map((b) => (

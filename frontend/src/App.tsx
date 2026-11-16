@@ -3,12 +3,13 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import { Header } from "./components/Header";
 import { Hero } from "./components/Hero";
 import { Footer } from "./components/Footer";
-import { MonitorRow } from "./components/MonitorRow";
+import { MonitorList } from "./components/MonitorList";
 import { MonitorDetail } from "./components/MonitorDetail";
+import { FeaturedRow } from "./components/FeaturedRow";
 import { apiFetch } from "./lib/api";
 import { useStatusSocket } from "./hooks/useStatusSocket";
 import { useLiveStore } from "./store/useLiveStore";
-import { FeaturedRow } from "./components/FeaturedRow";
+import type { MonitorData } from "./components/MonitorRow";
 
 type MonitorResponse = {
   slug: string;
@@ -35,13 +36,12 @@ function PulseApp() {
   const slugs = useMemo(() => monitors.map((m) => m.slug), [monitors]);
   useStatusSocket(slugs);
 
-  const mergedMonitors = useMemo(() => {
+  const mergedMonitors: MonitorData[] = useMemo(() => {
     return monitors.map((m) => {
       const live = liveData[m.slug] || {};
       return {
         ...m,
-        
-        status: (live.status || m.status || "unknown") as "up" | "down" | "stale", 
+        status: (live.status || m.status || "unknown") as "up" | "down" | "stale",
         latency: live.latency !== undefined ? live.latency : null,
         uptime24h: 100,
         recent: live.recent || [],
@@ -52,38 +52,29 @@ function PulseApp() {
   const selectedMonitor = mergedMonitors.find((m) => m.slug === selectedSlug) || mergedMonitors[0];
 
   return (
+    // 1. Reverted to simple flex column. The background is now handled by the page color.
     <div className="flex min-h-screen flex-col bg-page font-sans text-ink">
       <Header />
-      <main className="mx-auto flex w-full max-w-300 flex-1 flex-col gap-7 px-8 pb-12 pt-7">
-        <Hero />
-        
+      
+      {/* 2. Hero renders its own background internally */}
+      <Hero />
+      
+      {/* 3. The main content has a solid background so it covers any stray SVG below */}
+      <main className="relative z-10 mx-auto flex w-full max-w-300 flex-1 flex-col gap-7 bg-page px-8 pb-12 pt-7">
         <section className="flex flex-wrap items-start gap-6">
-          <div className="flex min-w-[320px] flex-[1_1_380px] flex-col gap-3">
-            <h2 className="text-lg font-semibold">Your monitors</h2>
-            {mergedMonitors.map((m) => (
-              <MonitorRow
-                key={m.slug}
-                m={m}
-                selected={m.slug === selectedMonitor?.slug}
-                onClick={() => setSelectedSlug(m.slug)}
-              />
-            ))}
-            <div className="text-[13px] text-muted">{mergedMonitors.length} of 5 monitors used.</div>
-          </div>
-
+          <MonitorList 
+            monitors={mergedMonitors} 
+            selectedSlug={selectedMonitor?.slug || ""} 
+            onSelect={setSelectedSlug} 
+          />
           <div className="flex-[2_1_520px]">
             <MonitorDetail m={selectedMonitor} />
           </div>
         </section>
-        <FeaturedRow />
 
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Live demo: popular services</h2>
-          <div className="flex flex-wrap gap-3">
-             {/* Live demo placeholder */}
-          </div>
-        </section>
+        <FeaturedRow />
       </main>
+      
       <Footer />
     </div>
   );

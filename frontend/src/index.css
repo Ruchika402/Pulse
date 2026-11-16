@@ -37,5 +37,41 @@ html, body, #root {
 }
 
 body {
-  @apply bg-page text-ink antialiased;
+  background-color: var(--color-page);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Heartbeat Animation */
+@keyframes draw-pulse {
+  0% { stroke-dashoffset: 1000; }
+  40% { stroke-dashoffset: 0; }
+  80% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+@keyframes moon-glow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.05); }
+}
+
+.animate-pulse-line {
+  stroke-dasharray: 1000;
+  animation: draw-pulse 4s ease-in-out infinite;
+}
+
+.animate-moon {
+  animation: moon-glow 6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-line, .animate-moon {
+    animation: none;
+  }
+  .animate-pulse-line { stroke-dashoffset: 0; }
+}
+
+.bg-page {
+  background-color: #06110E;
 }

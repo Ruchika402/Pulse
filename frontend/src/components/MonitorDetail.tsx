@@ -2,9 +2,9 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LatencyChart } from "./LatencyChart";
 import { StatusPill } from "./StatusPill";
+import { UptimeBar } from "./UptimeBar";
 import type { MonitorData } from "./MonitorRow";
 import { apiFetch } from "../lib/api";
-import { UptimeBar } from "./UptimeBar";
 
 type UptimeResponse = {
   uptime_percent: number | null;
@@ -15,28 +15,44 @@ type UptimeResponse = {
 export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
   const [range, setRange] = useState("24h");
   
-  const { data: stats } = useQuery<UptimeResponse>({
+  const { data: stats24h } = useQuery<UptimeResponse>({
+    queryKey: ["uptime", m?.slug, "24h"],
+    queryFn: () => apiFetch(`/monitors/${m?.slug}/uptime/?range=24h`),
+    enabled: !!m,
+  });
+
+  const { data: stats30d } = useQuery<UptimeResponse>({
+    queryKey: ["uptime", m?.slug, "30d"],
+    queryFn: () => apiFetch(`/monitors/${m?.slug}/uptime/?range=30d`),
+    enabled: !!m,
+  });
+
+  const { data: statsCurrent } = useQuery<UptimeResponse>({
     queryKey: ["uptime", m?.slug, range],
     queryFn: () => apiFetch(`/monitors/${m?.slug}/uptime/?range=${range}`),
     enabled: !!m,
   });
+
   const { data: history } = useQuery<{ buckets: { date: string; uptime: number }[] }>({
     queryKey: ["history-chart", m?.slug, range],
     queryFn: () => apiFetch(`/monitors/${m?.slug}/history/?range=${range}`),
     enabled: !!m,
   });
+
+  const { data: history90d } = useQuery<{ buckets: { date: string; uptime: number }[] }>({
+    queryKey: ["history-90d", m?.slug],
+    queryFn: () => apiFetch(`/monitors/${m?.slug}/history/?range=90d`),
+    enabled: !!m,
+  });
+
   const recentData = m?.recent;
 
-    const points: [number, number][] = useMemo(() => {
-    
+  const points: [number, number][] = useMemo(() => {
     if (history?.buckets && history.buckets.length > 0) {
-      
       return history.buckets
         .filter((b) => b.uptime !== null)
         .map((b, i) => [i, b.uptime as number]);
     }
-    
-    
     if (!recentData || recentData.length === 0) return [];
     return recentData.map((latency, i) => [i, latency]);
   }, [history, recentData]);
@@ -47,6 +63,9 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
     navigator.clipboard.writeText(text);
     alert("Copied!");
   };
+
+  // Calculate days below 100% for the caption
+  const daysBelow100 = history90d?.buckets.filter(b => b.uptime !== null && b.uptime < 100).length || 0;
 
   return (
     <div className="flex flex-col gap-4.5 rounded-card border border-line bg-card p-5.5">
@@ -62,9 +81,7 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
               key={tab}
               onClick={() => setRange(tab)}
               className={`min-h-8 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                tab === range
-                  ? "bg-mint font-semibold text-onmint"
-                  : "text-muted hover:text-ink"
+                tab === range ? "bg-mint font-semibold text-onmint" : "text-muted hover:text-ink"
               }`}
               aria-pressed={tab === range}
             >
@@ -74,23 +91,30 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
         </div>
       </div>
 
+      {/* 4-Stat Row */}
       <div className="flex flex-wrap gap-7">
         <div>
-          <div className="text-[13px] text-muted">Uptime {range}</div>
+          <div className="text-[13px] text-muted">Uptime 24h</div>
           <div className="text-[24px] font-bold tabular-nums">
-            {stats?.uptime_percent != null ? `${stats.uptime_percent}%` : "—"}
+            {stats24h?.uptime_percent != null ? `${stats24h.uptime_percent}%` : "—"}
+          </div>
+        </div>
+        <div>
+          <div className="text-[13px] text-muted">Uptime 30d</div>
+          <div className="text-[24px] font-bold tabular-nums">
+            {stats30d?.uptime_percent != null ? `${stats30d.uptime_percent}%` : "—"}
           </div>
         </div>
         <div>
           <div className="text-[13px] text-muted">Coverage</div>
           <div className="text-[24px] font-bold tabular-nums">
-             {stats?.coverage_percent != null ? `${stats.coverage_percent}%` : "—"}
+             {statsCurrent?.coverage_percent != null ? `${statsCurrent.coverage_percent}%` : "—"}
           </div>
         </div>
         <div>
-          <div className="text-[13px] text-muted">Avg latency</div>
+          <div className="text-[13px] text-muted">p95 latency</div>
           <div className="text-[24px] font-bold tabular-nums">
-             {stats?.avg_latency_ms != null ? `${stats.avg_latency_ms} ms` : "—"}
+             {statsCurrent?.avg_latency_ms != null ? `${statsCurrent.avg_latency_ms} ms` : "—"}
           </div>
         </div>
       </div>
@@ -99,8 +123,11 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
         <LatencyChart points={points} failures={[]} />
       </div>
 
-       <div>
-        <div className="mb-2 text-[13px] text-muted">Last 90 days</div>
+      <div>
+        <div className="mb-2 flex justify-between text-[13px] text-muted">
+          <span>Last 90 days</span>
+          <span>{daysBelow100} days below 100%</span>
+        </div>
         <UptimeBar slug={m.slug} range="90d" />
       </div>
 
