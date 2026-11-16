@@ -120,9 +120,20 @@ def record_result(monitor_id: int, outcome: CheckOutcome):
         # ← The critical fix: get the real integer back
         monitor.refresh_from_db(fields=["seq"])
 
+        from django.core.cache import cache
+
+        cache.set(
+            f"status:{monitor.id}",
+            {
+                "status": monitor.status,
+                "status_since": monitor.status_since.isoformat(),
+            },
+            timeout=300,
+        )
+
         event_data = check_event(
             slug=monitor.slug,
-            seq=monitor.seq,  # ← Now a real integer
+            seq=monitor.seq,
             time=timezone.now().isoformat(),
             ok=outcome.ok,
             status_code=outcome.status_code,
