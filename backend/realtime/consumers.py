@@ -3,7 +3,7 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.core.cache import cache
 from django.utils import timezone
 
-from monitors.models import CheckResult, Monitor, Subscription
+from monitors.models import CheckResult, Monitor
 from realtime.events import snapshot_event
 
 
@@ -35,7 +35,7 @@ class StatusConsumer(AsyncJsonWebsocketConsumer):
                 await self.channel_layer.group_add(group_name, self.channel_name)
                 self.groups_joined.add(group_name)
 
-            # Update last_viewed_at
+            # Update last_viewed_at (debounced later, but fine for now)
             await self.update_last_viewed(monitor["id"])
 
             # Send the snapshot (which contains the slug)
@@ -47,42 +47,39 @@ class StatusConsumer(AsyncJsonWebsocketConsumer):
         for slug in slugs:
             try:
                 monitor = Monitor.objects.get(slug=slug)
-                # Allow if featured, or subscribed, or sharing the slug directly
-                is_allowed = monitor.featured or (
-                    visitor_id
-                    and Subscription.objects.filter(monitor=monitor, visitor_id=visitor_id).exists()
-                )
-
-                if is_allowed or slug:
-                    cache_key = f"status:{monitor.id}"
-                    cached_status = cache.get(cache_key)
-
-                    if not cached_status:
-                        cached_status = {
-                            "status": monitor.status,
-                            "status_since": monitor.status_since.isoformat(),
-                        }
-
-                    # Get last 60 points
-                    points = list(
-                        CheckResult.objects.filter(monitor=monitor)
-                        .order_by("-time")
-                        .values("time", "latency_ms", "ok")[:60]
-                    )
-                    points.reverse()
-                    for p in points:
-                        p["time"] = p["time"].isoformat()
-
-                    # Pass slug to the snapshot builder
-                    snapshot = snapshot_event(
-                        slug=monitor.slug,
-                        status=cached_status["status"],
-                        latency_ms=points[-1]["latency_ms"] if points else None,
-                        last_60_points=points,
-                    )
-                    allowed.append({"id": monitor.id, "snapshot": snapshot})
             except Monitor.DoesNotExist:
                 continue
+            
+            # A slug is a public capability — anyone with the slug can see the live status.
+            # Management actions (deletion) require the token, handled in the API.
+            # This is why we don't strictly check `visitor_id` here for reads.
+            
+            cache_key = f"status:{monitor.id}"
+            cached_status = cache.get(cache_key)
+            
+            if not cached_status:
+                cached_status = {
+                    "status": monitor.status,
+                    "status_since": monitor.status_since.isoformat(),
+                }
+
+            points = list(
+                CheckResult.objects.filter(monitor=monitor)
+                .order_by("-time")
+                .values("time", "latency_ms", "ok")[:60]
+            )
+            points.reverse()
+            for p in points:
+                p["time"] = p["time"].isoformat()
+
+            snapshot = snapshot_event(
+                slug=monitor.slug,
+                status=cached_status["status"],
+                latency_ms=points[-1]["latency_ms"] if points else None,
+                last_60_points=points,
+            )
+            allowed.append({"id": monitor.id, "snapshot": snapshot})
+            
         return allowed
 
     @database_sync_to_async
