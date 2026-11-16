@@ -92,7 +92,7 @@ class CheckResult(models.Model):
 
 
 class UptimeHourly(models.Model):
-    bucket = models.DateTimeField()
+    bucket = models.DateTimeField(primary_key=True)
     monitor = models.ForeignKey(Monitor, on_delete=models.DO_NOTHING, db_column="monitor_id")
     checks = models.IntegerField()
     ok_checks = models.IntegerField()

@@ -49,14 +49,14 @@ class StatusConsumer(AsyncJsonWebsocketConsumer):
                 monitor = Monitor.objects.get(slug=slug)
             except Monitor.DoesNotExist:
                 continue
-            
+
             # A slug is a public capability — anyone with the slug can see the live status.
             # Management actions (deletion) require the token, handled in the API.
             # This is why we don't strictly check `visitor_id` here for reads.
-            
+
             cache_key = f"status:{monitor.id}"
             cached_status = cache.get(cache_key)
-            
+
             if not cached_status:
                 cached_status = {
                     "status": monitor.status,
@@ -79,7 +79,7 @@ class StatusConsumer(AsyncJsonWebsocketConsumer):
                 last_60_points=points,
             )
             allowed.append({"id": monitor.id, "snapshot": snapshot})
-            
+
         return allowed
 
     @database_sync_to_async
