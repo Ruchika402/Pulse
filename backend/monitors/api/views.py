@@ -33,13 +33,11 @@ class MonitorViewSet(viewsets.ModelViewSet):
 
         url = serializer.validated_data["url"]
 
-        # Check if it already exists
         existing = Monitor.objects.filter(url=url).first()
         if existing:
             Subscription.objects.get_or_create(monitor=existing, visitor_id=request.visitor_id)
             return Response(MonitorSerializer(existing).data, status=status.HTTP_200_OK)
 
-        # Create the monitor (host is derived from the SSRF guard)
         safe_url = async_to_sync(validate_url)(url)
         monitor = Monitor.objects.create(url=url, host=safe_url.host_header)
 
@@ -48,12 +46,10 @@ class MonitorViewSet(viewsets.ModelViewSet):
         return Response(MonitorSerializer(monitor).data, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, *args, **kwargs):
-        # Only allow deleting the subscription, not the monitor itself.
-        # The monitor stops when nobody is left.
+
         instance = self.get_object()
         Subscription.objects.filter(monitor=instance, visitor_id=request.visitor_id).delete()
 
-        # Check if monitor has any subscriptions left
         if not instance.subscriptions.exists():
             instance.delete()
 
@@ -83,3 +79,9 @@ class MonitorViewSet(viewsets.ModelViewSet):
 
         history = get_uptime_history(monitor.id, hours)
         return Response({"slug": monitor.slug, "range": range_param, "buckets": history})
+
+    @action(detail=False, methods=["get"], permission_classes=[])
+    def featured(self, request):
+        featured_monitors = Monitor.objects.filter(featured=True).order_by("-created_at")
+        serializer = self.get_serializer(featured_monitors, many=True)
+        return Response(serializer.data)

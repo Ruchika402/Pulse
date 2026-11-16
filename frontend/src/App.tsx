@@ -8,6 +8,7 @@ import { MonitorDetail } from "./components/MonitorDetail";
 import { apiFetch } from "./lib/api";
 import { useStatusSocket } from "./hooks/useStatusSocket";
 import { useLiveStore } from "./store/useLiveStore";
+import { FeaturedRow } from "./components/FeaturedRow";
 
 type MonitorResponse = {
   slug: string;
@@ -39,7 +40,7 @@ function PulseApp() {
       const live = liveData[m.slug] || {};
       return {
         ...m,
-        // Add the type assertion here 👇
+        
         status: (live.status || m.status || "unknown") as "up" | "down" | "stale", 
         latency: live.latency !== undefined ? live.latency : null,
         uptime24h: 100,
@@ -74,6 +75,7 @@ function PulseApp() {
             <MonitorDetail m={selectedMonitor} />
           </div>
         </section>
+        <FeaturedRow />
 
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Live demo: popular services</h2>
