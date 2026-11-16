@@ -4,6 +4,7 @@ import { LatencyChart } from "./LatencyChart";
 import { StatusPill } from "./StatusPill";
 import type { MonitorData } from "./MonitorRow";
 import { apiFetch } from "../lib/api";
+import { UptimeBar } from "./UptimeBar";
 
 type UptimeResponse = {
   uptime_percent: number | null;
@@ -19,13 +20,26 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
     queryFn: () => apiFetch(`/monitors/${m?.slug}/uptime/?range=${range}`),
     enabled: !!m,
   });
-
+  const { data: history } = useQuery<{ buckets: { date: string; uptime: number }[] }>({
+    queryKey: ["history-chart", m?.slug, range],
+    queryFn: () => apiFetch(`/monitors/${m?.slug}/history/?range=${range}`),
+    enabled: !!m,
+  });
   const recentData = m?.recent;
 
-  const points: [number, number][] = useMemo(() => {
+    const points: [number, number][] = useMemo(() => {
+    
+    if (history?.buckets && history.buckets.length > 0) {
+      
+      return history.buckets
+        .filter((b) => b.uptime !== null)
+        .map((b, i) => [i, b.uptime as number]);
+    }
+    
+    
     if (!recentData || recentData.length === 0) return [];
     return recentData.map((latency, i) => [i, latency]);
-  }, [recentData]);
+  }, [history, recentData]);
 
   if (!m) return null;
 
@@ -85,13 +99,9 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
         <LatencyChart points={points} failures={[]} />
       </div>
 
-      <div>
+       <div>
         <div className="mb-2 text-[13px] text-muted">Last 90 days</div>
-        <div className="flex h-7.5 gap-0.5 overflow-hidden rounded bg-field">
-          {Array.from({ length: 90 }).map((_, i) => (
-            <div key={i} className="flex-1 bg-cell" />
-          ))}
-        </div>
+        <UptimeBar slug={m.slug} range="90d" />
       </div>
 
       <div className="flex flex-wrap gap-3">

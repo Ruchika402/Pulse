@@ -46,3 +46,38 @@ def get_uptime_stats(monitor_id: int, hours: int) -> dict:
         "avg_latency_ms": round(avg_latency, 2) if avg_latency else None,
         "total_checks": total_checks,
     }
+
+
+def get_uptime_history(monitor_id: int, hours: int) -> list[dict]:
+    """
+    Returns a list of buckets (e.g., days for 90d, hours for 24h) with uptime percentages.
+    """
+    now = timezone.now()
+    start = now - timedelta(hours=hours)
+
+    checks = CheckResult.objects.filter(monitor_id=monitor_id, time__gte=start).order_by("time")
+
+    if not checks.exists():
+        return []
+
+    buckets = {}
+    for check in checks:
+        if hours > 24:
+            bucket_time = check.time.date().isoformat()
+        else:
+            bucket_time = check.time.replace(minute=0, second=0, microsecond=0).isoformat()
+
+        if bucket_time not in buckets:
+            buckets[bucket_time] = {"total": 0, "ok": 0}
+
+        buckets[bucket_time]["total"] += 1
+        if check.ok:
+            buckets[bucket_time]["ok"] += 1
+
+    result = []
+    for bucket_time, data in buckets.items():
+        uptime = (data["ok"] / data["total"]) * 100
+        result.append({"date": bucket_time, "uptime": round(uptime, 2)})
+
+    result.sort(key=lambda x: x["date"])
+    return result
