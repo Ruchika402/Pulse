@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from urllib.parse import urlparse
 
 import httpx
+from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db import transaction
 from django.db.models import F
@@ -28,13 +29,11 @@ async def perform_check(url: str) -> CheckOutcome:
     except SSRFError:
         return CheckOutcome(False, None, None, "blocked", None)
 
-    # 1. Parse the original URL to keep the path/query
     parsed = urlparse(url)
     path_and_query = parsed.path or "/"
     if parsed.query:
         path_and_query += f"?{parsed.query}"
 
-    # 2. Build the target URL using the validated IP directly
     ip = f"[{safe_url.resolved_ip}]" if ":" in safe_url.resolved_ip else safe_url.resolved_ip
     port_str = f":{parsed.port}" if parsed.port else ""
     scheme = "https" if safe_url.is_https else "http"
@@ -98,7 +97,6 @@ def record_result(monitor_id: int, outcome: CheckOutcome):
         if old_status != new_status:
             monitor.status = new_status
             monitor.status_since = timezone.now()
-
             status_change_data = status_change_event(
                 slug=monitor.slug,
                 seq=monitor.seq + 1,
@@ -119,9 +117,12 @@ def record_result(monitor_id: int, outcome: CheckOutcome):
         )
         monitor.save()
 
+        # ← The critical fix: get the real integer back
+        monitor.refresh_from_db(fields=["seq"])
+
         event_data = check_event(
             slug=monitor.slug,
-            seq=monitor.seq,
+            seq=monitor.seq,  # ← Now a real integer
             time=timezone.now().isoformat(),
             ok=outcome.ok,
             status_code=outcome.status_code,
@@ -130,14 +131,10 @@ def record_result(monitor_id: int, outcome: CheckOutcome):
         )
 
     if event_data:
-        from asgiref.sync import async_to_sync
-
         async_to_sync(channel_layer.group_send)(
             f"mon_{monitor.id}", {"type": "monitor.event", "data": event_data}
         )
     if status_change_data:
-        from asgiref.sync import async_to_sync
-
         async_to_sync(channel_layer.group_send)(
             f"mon_{monitor.id}", {"type": "monitor.event", "data": status_change_data}
         )
