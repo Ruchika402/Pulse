@@ -1,3 +1,4 @@
+from asgiref.sync import async_to_sync
 from rest_framework import serializers
 
 from monitors.models import Monitor
@@ -29,7 +30,7 @@ class MonitorSerializer(serializers.ModelSerializer):
 
     def validate_url(self, value):
         try:
-            validate_url(value)
+            async_to_sync(validate_url)(value)
         except SSRFError as e:
             raise serializers.ValidationError(str(e)) from e
         return value
