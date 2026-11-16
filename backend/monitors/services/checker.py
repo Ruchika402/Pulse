@@ -1,5 +1,6 @@
 import time
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 import httpx
 from channels.layers import get_channel_layer
@@ -27,8 +28,19 @@ async def perform_check(url: str) -> CheckOutcome:
     except SSRFError:
         return CheckOutcome(False, None, None, "blocked", None)
 
+    # 1. Parse the original URL to keep the path/query
+    parsed = urlparse(url)
+    path_and_query = parsed.path or "/"
+    if parsed.query:
+        path_and_query += f"?{parsed.query}"
+
+    # 2. Build the target URL using the validated IP directly
+    ip = f"[{safe_url.resolved_ip}]" if ":" in safe_url.resolved_ip else safe_url.resolved_ip
+    port_str = f":{parsed.port}" if parsed.port else ""
+    scheme = "https" if safe_url.is_https else "http"
+    target_url = f"{scheme}://{ip}{port_str}{path_and_query}"
+
     start = time.monotonic()
-    transport = httpx.AsyncHTTPTransport(local_address=safe_url.resolved_ip)
     headers = {
         "User-Agent": "PulsePortfolioBot/1.0 (+https://github.com/Ruchika402/Pulse)",
         "Host": safe_url.host_header,
@@ -36,29 +48,22 @@ async def perform_check(url: str) -> CheckOutcome:
 
     try:
         async with httpx.AsyncClient(
-            transport=transport,
             timeout=httpx.Timeout(10.0, connect=5.0),
             follow_redirects=False,
         ) as client:
             ext = {"sni_hostname": safe_url.host_header} if safe_url.is_https else {}
-            response = await client.get(safe_url.original_url, headers=headers, extensions=ext)
-            latency_ms = int((time.monotonic() - start) * 1000)
-            http_version = response.http_version
-            ok = 200 <= response.status_code < 400
+            response = await client.get(target_url, headers=headers, extensions=ext)
 
-            error_kind = None
-            if not ok:
-                if response.status_code >= 500:
-                    error_kind = "http_5xx"
-                else:
-                    error_kind = "other"
+            latency_ms = int((time.monotonic() - start) * 1000)
+            ok = 200 <= response.status_code < 400
+            error_kind = None if ok else ("http_5xx" if response.status_code >= 500 else "other")
 
             return CheckOutcome(
                 ok=ok,
                 status_code=response.status_code,
                 latency_ms=latency_ms,
                 error_kind=error_kind,
-                http_version=http_version,
+                http_version=response.http_version,
             )
 
     except httpx.TimeoutException:
