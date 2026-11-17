@@ -3,7 +3,8 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import { Header } from "./components/Header";
 import { Hero } from "./components/Hero";
 import { Footer } from "./components/Footer";
-import { MonitorList } from "./components/MonitorList";
+import { MonitorTable } from "./components/MonitorTable"; // <-- New import
+import { RecentAlerts } from "./components/RecentAlerts"; // <-- New import
 import { MonitorDetail } from "./components/MonitorDetail";
 import { FeaturedRow } from "./components/FeaturedRow";
 import { apiFetch } from "./lib/api";
@@ -52,27 +53,32 @@ function PulseApp() {
   const selectedMonitor = mergedMonitors.find((m) => m.slug === selectedSlug) || mergedMonitors[0];
 
   return (
-    // 1. Reverted to simple flex column. The background is now handled by the page color.
     <div className="flex min-h-screen flex-col bg-page font-sans text-ink">
       <Header />
       
-      {/* 2. Hero renders its own background internally */}
       <Hero />
       
-      {/* 3. The main content has a solid background so it covers any stray SVG below */}
       <main className="relative z-10 mx-auto flex w-full max-w-300 flex-1 flex-col gap-7 bg-page px-8 pb-12 pt-7">
+        
+        {/* Top Row: Table and Detail Card */}
         <section className="flex flex-wrap items-start gap-6">
-          <MonitorList 
-            monitors={mergedMonitors} 
-            selectedSlug={selectedMonitor?.slug || ""} 
-            onSelect={setSelectedSlug} 
-          />
-          <div className="flex-[2_1_520px]">
+          <div className="flex min-w-[320px] flex-[1_1_450px] flex-col gap-6">
+            <MonitorTable 
+              monitors={mergedMonitors} 
+              selectedSlug={selectedMonitor?.slug || ""} 
+              onSelect={setSelectedSlug} 
+            />
+            {/* Recent Alerts sits below the table */}
+            <RecentAlerts />
+          </div>
+          
+          <div className="flex-[1.5_1_550px]">
             <MonitorDetail m={selectedMonitor} />
           </div>
         </section>
 
         <FeaturedRow />
+        
       </main>
       
       <Footer />
