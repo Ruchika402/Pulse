@@ -8,8 +8,8 @@ from monitors.services.urlguard import SSRFError, validate_url
 
 
 class MonitorSerializer(serializers.ModelSerializer):
-    uptime_24h = serializers.SerializerMethodField()
-
+    #uptime_24h = serializers.SerializerMethodField()
+    last_check_time = serializers.DateTimeField(read_only=True, required=False)
     class Meta:
         model = Monitor
         fields = [
@@ -21,7 +21,8 @@ class MonitorSerializer(serializers.ModelSerializer):
             "status_since",
             "last_viewed_at",
             "created_at",
-            "uptime_24h",
+            #"uptime_24h",
+            "last_check_time",
         ]
         read_only_fields = [
             "slug",
@@ -31,16 +32,17 @@ class MonitorSerializer(serializers.ModelSerializer):
             "status_since",
             "last_viewed_at",
             "created_at",
+            "last_check_time"
         ]
-        extra_kwargs = {"url": {"validators": []}}  # Lets get_or_create handle it
+        extra_kwargs = {"url": {"validators": []}}  
 
-    def get_uptime_24h(self, obj):
-        key = f"uptime24h:{obj.id}"
-        val = cache.get(key, "miss")
-        if val == "miss":
-            val = get_uptime_stats(obj.id, 24)["uptime_percent"]
-            cache.set(key, val, 30)
-        return val
+    #def get_uptime_24h(self, obj):
+       # key = f"uptime24h:{obj.id}"
+        #val = cache.get(key, "miss")
+       # if val == "miss":
+       #     val = get_uptime_stats(obj.id, 24)["uptime_percent"]
+      #      cache.set(key, val, 30)
+       # return val
 
     def validate_url(self, value):
         try:

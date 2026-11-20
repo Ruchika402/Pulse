@@ -20,6 +20,7 @@ type MonitorResponse = {
   interval_seconds: number;
   status_since: string;
   created_at: string;
+  last_check_time: string | null;
 };
 
 const queryClient = new QueryClient();
@@ -40,11 +41,23 @@ function PulseApp() {
   const mergedMonitors: MonitorData[] = useMemo(() => {
     return monitors.map((m) => {
       const live = liveData[m.slug] || {};
+      
+      let finalStatus = (live.status || m.status || "unknown") as "up" | "down" | "stale" | "unknown";
+      const lastCheck = m.last_check_time ? new Date(m.last_check_time).getTime() : null;
+      
+      // If we have a last check time, and it's older than 3 intervals, it's stale
+      if (lastCheck && m.interval_seconds) {
+        const staleThreshold = m.interval_seconds * 1000 * 3;
+        if (Date.now() - lastCheck > staleThreshold) {
+          finalStatus = "stale";
+        }
+      }
+
       return {
         ...m,
-        status: (live.status || m.status || "unknown") as "up" | "down" | "stale",
+        status: finalStatus,
         latency: live.latency !== undefined ? live.latency : null,
-        uptime24h: 100,
+        uptime24h: null,
         recent: live.recent || [],
       };
     });

@@ -2,6 +2,16 @@ import { StatusPill } from "./StatusPill";
 import { Sparkline } from "./Sparkline";
 import type { MonitorData } from "./MonitorRow";
 
+// Helper to format the time
+const formatTimeAgo = (isoString: string | null | undefined) => {
+  if (!isoString) return "Waiting for first check";
+  const diff = Date.now() - new Date(isoString).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes === 1) return "1m ago";
+  return `${minutes}m ago`;
+};
+
 export function MonitorTable({ monitors, selectedSlug, onSelect }: {
   monitors: MonitorData[];
   selectedSlug: string;
@@ -43,19 +53,25 @@ export function MonitorTable({ monitors, selectedSlug, onSelect }: {
                   </div>
                 </td>
                 <td className="py-3 pr-4">
-                  <StatusPill status={m.status as "up" | "down" | "stale"} />
+                  <StatusPill status={m.status} />
                 </td>
                 <td className="py-3 pr-4">
                   <div className="flex items-center gap-3">
                     <Sparkline values={m.recent} down={m.status === "down"} />
-                    <span className="tabular-nums">{m.uptime24h}%</span>
+                    <span className="tabular-nums">{m.uptime24h ? `${m.uptime24h}%` : "—"}</span>
                   </div>
                 </td>
                 <td className="py-3 pr-4 tabular-nums">
-                  {m.latency ? `${m.latency} ms` : "—"}
+                  {m.status === "unknown" ? (
+                    <span className="text-xs text-muted italic">Pending...</span>
+                  ) : m.latency ? (
+                    `${m.latency} ms`
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="py-3 text-muted">
-                  {m.status === "down" ? "Just now" : "2m ago"} {/* Will be real timestamp later */}
+                  {formatTimeAgo(m.last_check_time)}
                 </td>
               </tr>
             ))}

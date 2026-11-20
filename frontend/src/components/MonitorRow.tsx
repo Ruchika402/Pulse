@@ -4,10 +4,12 @@ import { Sparkline } from "./Sparkline";
 export type MonitorData = {
   slug: string;
   host: string;
-  status: "up" | "down" | "stale";
+  status: "up" | "down" | "stale" | "unknown";
   latency: number | null;
   uptime24h: number | null;
   recent: number[];
+  last_check_time?: string | null; 
+  interval_seconds: number;  
 };
 
 export function MonitorRow({
@@ -34,6 +36,8 @@ export function MonitorRow({
         <div className="text-[13px] text-muted">
           {m.status === "down" ? (
             <span className="text-downfg">Timeout · down for 4 min</span>
+          ) : m.status === "unknown" ? (
+            <span className="italic">Waiting for first check</span>
           ) : (
             <>
               {m.latency ? `${m.latency} ms` : "—"} · {m.uptime24h ? `${m.uptime24h}%` : "—"} (24h)
