@@ -11,6 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
     DEBUG=(bool, False),
+    DEFAULT_INTERVAL=(int, 60),
     PULSE_MODE=(str, "single"),
     MIN_INTERVAL=(int, 30),
     MAX_MONITORS_TOTAL=(int, 500),
@@ -161,6 +162,7 @@ CONTENT_SECURITY_POLICY = {
 # Pulse settings
 PULSE_MODE = env("PULSE_MODE")
 MIN_INTERVAL = env("MIN_INTERVAL")
+DEFAULT_INTERVAL = max(env("DEFAULT_INTERVAL"), MIN_INTERVAL)
 MAX_MONITORS_TOTAL = env("MAX_MONITORS_TOTAL")
 MAX_MONITORS_PER_VISITOR = env("MAX_MONITORS_PER_VISITOR")
 MAX_MONITORS_PER_HOST = env("MAX_MONITORS_PER_HOST")

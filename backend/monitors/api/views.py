@@ -1,14 +1,18 @@
-from asgiref.sync import async_to_sync
+from datetime import timedelta
+from urllib.parse import urlparse
+
 from django.conf import settings
+from django.db.models import Avg, Count, Q
+from django.db.models.functions import TruncDay, TruncHour
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from monitors.api.permissions import HasVisitorId
 from monitors.api.serializers import MonitorSerializer
-from monitors.models import Monitor, Subscription
+from monitors.models import CheckResult, Monitor, Subscription
 from monitors.services.uptime import get_uptime_history, get_uptime_stats
-from monitors.services.urlguard import validate_url
 
 
 class MonitorViewSet(viewsets.ModelViewSet):
@@ -32,14 +36,16 @@ class MonitorViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         url = serializer.validated_data["url"]
-
+        parsed_url = urlparse(url)
+        host = parsed_url.hostname.lower() if parsed_url.hostname else ""
         existing = Monitor.objects.filter(url=url).first()
         if existing:
             Subscription.objects.get_or_create(monitor=existing, visitor_id=request.visitor_id)
             return Response(MonitorSerializer(existing).data, status=status.HTTP_200_OK)
 
-        safe_url = async_to_sync(validate_url)(url)
-        monitor = Monitor.objects.create(url=url, host=safe_url.host_header)
+        monitor = Monitor.objects.create(
+            url=url, host=host, interval_seconds=settings.DEFAULT_INTERVAL
+        )
 
         Subscription.objects.create(monitor=monitor, visitor_id=request.visitor_id)
 
@@ -85,3 +91,37 @@ class MonitorViewSet(viewsets.ModelViewSet):
         featured_monitors = Monitor.objects.filter(featured=True).order_by("-created_at")
         serializer = self.get_serializer(featured_monitors, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["get"])
+    def checks(self, request, slug=None):
+        monitor = self.get_object()
+        rng = request.query_params.get("range", "1h")
+        hours = {"1h": 1, "24h": 24, "30d": 720, "90d": 2160}.get(rng, 1)
+        start = timezone.now() - timedelta(hours=hours)
+        qs = CheckResult.objects.filter(monitor=monitor, time__gte=start)
+
+        if hours <= 24:
+            data = [
+                {"time": r["time"].isoformat(), "latency_ms": r["latency_ms"], "ok": r["ok"]}
+                for r in qs.order_by("time").values("time", "latency_ms", "ok")
+            ]
+        else:
+            trunc = TruncHour if hours <= 720 else TruncDay
+            rows = (
+                qs.annotate(b=trunc("time"))
+                .values("b")
+                .annotate(
+                    lat=Avg("latency_ms", filter=Q(ok=True)),
+                    fails=Count("time", filter=Q(ok=False)),
+                )
+                .order_by("b")
+            )
+            data = [
+                {
+                    "time": r["b"].isoformat(),
+                    "latency_ms": round(r["lat"]) if r["lat"] is not None else None,
+                    "ok": r["fails"] == 0,
+                }
+                for r in rows
+            ]
+        return Response({"slug": monitor.slug, "range": rng, "checks": data})
