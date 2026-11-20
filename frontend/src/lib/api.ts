@@ -18,7 +18,14 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`/api/v1${path}`, { ...options, headers });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    throw new Error(error.message || error.detail || `Request failed with status ${res.status}`);
+    
+    
+    let message = error.message || error.detail;
+    if (!message) {
+      message = Object.values(error).flat().join(" ");
+    }
+    
+    throw new Error(message || `Request failed with status ${res.status}`);
   }
   return res.json();
 }

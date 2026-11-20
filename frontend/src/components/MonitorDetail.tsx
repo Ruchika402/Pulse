@@ -33,9 +33,14 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
     enabled: !!m,
   });
 
-  const { data: history } = useQuery<{ buckets: { date: string; uptime: number }[] }>({
+  /*const { data: history } = useQuery<{ buckets: { date: string; uptime: number }[] }>({
     queryKey: ["history-chart", m?.slug, range],
     queryFn: () => apiFetch(`/monitors/${m?.slug}/history/?range=${range}`),
+    enabled: !!m,
+  });*/
+  const { data: checksData } = useQuery<{ checks: { time: string; latency_ms: number; ok: boolean }[] }>({
+    queryKey: ["checks", m?.slug, range],
+    queryFn: () => apiFetch(`/monitors/${m?.slug}/checks/?range=${range}`),
     enabled: !!m,
   });
 
@@ -48,14 +53,14 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
   const recentData = m?.recent;
 
   const points: [number, number][] = useMemo(() => {
-    if (history?.buckets && history.buckets.length > 0) {
-      return history.buckets
-        .filter((b) => b.uptime !== null)
-        .map((b, i) => [i, b.uptime as number]);
+    if (checksData?.checks && checksData.checks.length > 0) {
+      return checksData.checks
+        .filter((c) => c.latency_ms !== null)
+        .map((c, i) => [i, c.latency_ms as number]);
     }
     if (!recentData || recentData.length === 0) return [];
     return recentData.map((latency, i) => [i, latency]);
-  }, [history, recentData]);
+  }, [checksData, recentData]);
 
   if (!m) return null;
 

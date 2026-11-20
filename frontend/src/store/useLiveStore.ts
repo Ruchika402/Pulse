@@ -20,6 +20,14 @@ export type StatusChangeMessage = {
   since: string;
 };
 
+export type SnapshotMessage = {
+  type: "snapshot";
+  slug: string;
+  status: string;
+  latency_ms: number | null;
+  points: { time: string; latency_ms: number | null; ok: boolean }[];
+};
+
 type LiveData = {
   status?: string;
   latency?: number;
@@ -31,11 +39,30 @@ interface LiveState {
   monitors: Record<string, LiveData>;
   updateCheck: (slug: string, data: CheckMessage) => void;
   updateStatus: (slug: string, data: StatusChangeMessage) => void;
+  setSnapshot: (slug: string, data: SnapshotMessage) => void;
 }
 
 export const useLiveStore = create<LiveState>((set) => ({
   monitors: {},
   
+  setSnapshot: (slug, data) => set((state) => {
+    const current = state.monitors[slug] || { lastSeq: 0, recent: [] };
+    return {
+      monitors: {
+        ...state.monitors,
+        [slug]: {
+          ...current,
+          status: data.status,
+          latency: data.latency_ms ?? undefined,
+          recent: data.points
+            .map((p) => p.latency_ms)
+            .filter((v): v is number => v !== null)
+            .slice(-20),
+        }
+      }
+    };
+  }),
+
   updateCheck: (slug, data) => set((state) => {
     const current = state.monitors[slug] || { lastSeq: 0, recent: [] };
     if (data.seq && data.seq <= current.lastSeq) return state;
