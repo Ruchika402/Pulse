@@ -6,7 +6,7 @@ export function RecentAlerts() {
   ];
 
   return (
-    <div className="rounded-xl border border-line bg-card p-4">
+    <div className="flex h-full flex-col rounded-xl border border-line bg-card p-4">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-ink">Recent Alerts</h2>
         <button className="text-sm font-medium text-mint hover:text-mint/80">View All →</button>

@@ -9,7 +9,6 @@ import {
 } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 
-// Register only the components we need
 echarts.use([
   LineChart,
   GridComponent,
@@ -46,7 +45,7 @@ export function LatencyChart({
         textStyle: { color: "#E6F6EE" },
       },
        xAxis: {
-        type: "value", // Changed from "time" to "value"
+        type: "time", 
         axisLine: { lineStyle: { color: "#17382E" } },
         axisLabel: { color: "#8FB3A4" },
       },

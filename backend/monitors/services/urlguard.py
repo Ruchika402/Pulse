@@ -88,7 +88,8 @@ async def validate_url(raw_url: str) -> SafeURL:
         if not ip.is_global:
             raise SSRFError(f"Address {ip} is not a public IP.")
 
-    first_ip = list(resolved_ips)[0]
+    ordered_ips = sorted(resolved_ips, key=lambda ip: ":" in ip)
+    first_ip = ordered_ips[0]
 
     return SafeURL(
         original_url=raw_url,

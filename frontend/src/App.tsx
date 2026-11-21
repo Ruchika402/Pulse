@@ -74,21 +74,27 @@ function PulseApp() {
       
       <main className="relative z-10 mx-auto flex w-full max-w-300 flex-1 flex-col gap-7 bg-page px-8 pb-12 pt-7">
         
-        {/* Top Row: Table and Detail Card */}
-        <section className="flex flex-wrap items-start gap-6">
-          <div className="flex min-w-[320px] flex-[1_1_450px] flex-col gap-6">
+        <section className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[minmax(380px,1fr)_minmax(500px,1.5fr)]">
+          
+          {/* Left Column */}
+          <div className="flex flex-col">
             <MonitorTable 
               monitors={mergedMonitors} 
               selectedSlug={selectedMonitor?.slug || ""} 
               onSelect={setSelectedSlug} 
             />
-            {/* Recent Alerts sits below the table */}
-            <RecentAlerts />
           </div>
           
-          <div className="flex-[1.5_1_550px]">
+          {/* Right Column */}
+          <div className="flex flex-col">
             <MonitorDetail m={selectedMonitor} />
           </div>
+          
+        </section>
+
+        
+        <section className="w-full">
+          <RecentAlerts />
         </section>
 
         <FeaturedRow />

@@ -35,7 +35,7 @@ export function MonitorRow({
         <div className="font-semibold">{m.host}</div>
         <div className="text-[13px] text-muted">
           {m.status === "down" ? (
-            <span className="text-downfg">Timeout · down for 4 min</span>
+            <span className="text-downfg">Timeout · down</span>
           ) : m.status === "unknown" ? (
             <span className="italic">Waiting for first check</span>
           ) : (

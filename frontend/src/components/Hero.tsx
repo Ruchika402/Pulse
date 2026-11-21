@@ -69,7 +69,7 @@ export function Hero() {
         
         {error && <div className="text-sm text-downfg">{error}</div>}
         
-        <div className="text-[13px] text-muted">Checks every 60 seconds. Protected by Cloudflare Turnstile.</div>
+        <div className="text-[13px] text-muted">Checks every 60 seconds.</div>
       </div>
     </section>
   );

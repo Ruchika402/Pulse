@@ -55,19 +55,21 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
     if (checksData?.checks && checksData.checks.length > 0) {
       return checksData.checks
         .filter((c) => c.latency_ms !== null)
-        .map((c, i) => [i, c.latency_ms as number]);
+        .map((c) => [new Date(c.time).getTime(), c.latency_ms as number]);
     }
   
     if (!recentData || recentData.length === 0) return [];
-    return recentData.map((latency, i) => [i, latency]);
+    // eslint-disable-next-line react-hooks/purity
+    const now = Date.now();
+    return recentData.map((latency, i) => [
+      now - ((recentData.length - 1 - i) * 60000), 
+      latency
+    ]);
   }, [checksData, recentData]); 
 
   if (!m) return null;
 
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert("Copied!");
-  };
+
 
   const daysBelow100 = history90d?.buckets.filter(b => b.uptime !== null && b.uptime < 100).length || 0;
 
@@ -87,8 +89,7 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
   }
 
   return (
-    <div className="flex flex-col gap-4.5 rounded-card border border-line bg-card p-5.5">
-      {/* Title Row */}
+    <div className="flex h-full flex-col gap-4.5 rounded-card border border-line bg-card p-5.5">
       <div className="flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-3">
           <StatusPill status={m.status} />
@@ -153,17 +154,7 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
         <UptimeBar slug={m.slug} range="90d" />
       </div>
 
-      {/* Buttons */}
-      <div className="flex flex-wrap gap-3">
-        <button
-          onClick={() => handleCopy(`http://localhost:5173/m/${m.slug}`)}
-          className="min-h-11 rounded-xl border border-edge bg-field px-4 text-sm font-semibold text-ink hover:border-mint transition-colors"
-        >
-          Copy share link
-        </button>
-        {/* We are hiding the badge button because the badge endpoint is not built yet */}
-        {/* <button ...>Copy README badge</button> */}
-      </div>
+      
     </div>
   );
 }
