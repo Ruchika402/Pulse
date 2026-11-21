@@ -2,8 +2,7 @@ from datetime import timedelta
 from urllib.parse import urlparse
 
 from django.conf import settings
-from django.db.models import OuterRef
-from django.db.models import Avg, Count, Q, Subquery
+from django.db.models import Avg, Count, OuterRef, Q, Subquery
 from django.db.models.functions import TruncDay, TruncHour
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -25,7 +24,11 @@ class MonitorViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         visitor_id = self.request.visitor_id
         latest_check = CheckResult.objects.filter(monitor=OuterRef("pk")).order_by("-time")
-        return Monitor.objects.filter(subscriptions__visitor_id=visitor_id).annotate(last_check_time=Subquery(latest_check.values("time")[:1])).order_by("-created_at")
+        return (
+            Monitor.objects.filter(subscriptions__visitor_id=visitor_id)
+            .annotate(last_check_time=Subquery(latest_check.values("time")[:1]))
+            .order_by("-created_at")
+        )
 
     def create(self, request, *args, **kwargs):
         if Monitor.objects.count() >= settings.MAX_MONITORS_TOTAL:

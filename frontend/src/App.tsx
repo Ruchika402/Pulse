@@ -48,6 +48,7 @@ function PulseApp() {
       // If we have a last check time, and it's older than 3 intervals, it's stale
       if (lastCheck && m.interval_seconds) {
         const staleThreshold = m.interval_seconds * 1000 * 3;
+        // eslint-disable-next-line react-hooks/purity
         if (Date.now() - lastCheck > staleThreshold) {
           finalStatus = "stale";
         }

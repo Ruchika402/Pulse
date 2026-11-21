@@ -48,17 +48,19 @@ export function MonitorDetail({ m }: { m: MonitorData | undefined }) {
     enabled: !!m,
   });
 
-  // Merge live data with historical data for the chart
+    // Extract this first so the dependency array is clean
+  const recentData = m?.recent;
+
   const points: [number, number][] = useMemo(() => {
     if (checksData?.checks && checksData.checks.length > 0) {
       return checksData.checks
         .filter((c) => c.latency_ms !== null)
         .map((c, i) => [i, c.latency_ms as number]);
     }
-    // Fallback to live WebSocket data if history is empty
-    if (!m?.recent || m.recent.length === 0) return [];
-    return m.recent.map((latency, i) => [i, latency]);
-  }, [checksData, m?.recent]);
+  
+    if (!recentData || recentData.length === 0) return [];
+    return recentData.map((latency, i) => [i, latency]);
+  }, [checksData, recentData]); 
 
   if (!m) return null;
 
