@@ -31,10 +31,19 @@ class MonitorViewSet(viewsets.ModelViewSet):
         )
 
     def create(self, request, *args, **kwargs):
+
         if Monitor.objects.count() >= settings.MAX_MONITORS_TOTAL:
             return Response(
                 {"code": "full", "message": "Pulse is full right now."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        visitor_count = Subscription.objects.filter(visitor_id=request.visitor_id).count()
+        if visitor_count >= settings.MAX_MONITORS_PER_VISITOR:
+            msg = f"You can only monitor {settings.MAX_MONITORS_PER_VISITOR} URLs."
+            return Response(
+                {"code": "visitor_limit", "message": msg},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
         serializer = self.get_serializer(data=request.data)
@@ -43,6 +52,14 @@ class MonitorViewSet(viewsets.ModelViewSet):
         url = serializer.validated_data["url"]
         parsed_url = urlparse(url)
         host = parsed_url.hostname.lower() if parsed_url.hostname else ""
+
+        host_count = Monitor.objects.filter(host=host).count()
+        if host_count >= settings.MAX_MONITORS_PER_HOST:
+            return Response(
+                {"code": "host_limit", "message": f"Too many monitors for {host}."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         existing = Monitor.objects.filter(url=url).first()
         if existing:
             Subscription.objects.get_or_create(monitor=existing, visitor_id=request.visitor_id)
@@ -51,7 +68,6 @@ class MonitorViewSet(viewsets.ModelViewSet):
         monitor = Monitor.objects.create(
             url=url, host=host, interval_seconds=settings.DEFAULT_INTERVAL
         )
-
         Subscription.objects.create(monitor=monitor, visitor_id=request.visitor_id)
 
         return Response(MonitorSerializer(monitor).data, status=status.HTTP_201_CREATED)
