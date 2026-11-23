@@ -8,6 +8,7 @@ from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 from monitors.api.permissions import HasVisitorId
 from monitors.api.serializers import MonitorSerializer
@@ -16,6 +17,7 @@ from monitors.services.uptime import get_uptime_history, get_uptime_stats
 
 
 class MonitorViewSet(viewsets.ModelViewSet):
+    throttle_scope = "monitor_create"
     serializer_class = MonitorSerializer
     authentication_classes = []
     permission_classes = [HasVisitorId]
@@ -29,6 +31,11 @@ class MonitorViewSet(viewsets.ModelViewSet):
             .annotate(last_check_time=Subquery(latest_check.values("time")[:1]))
             .order_by("-created_at")
         )
+
+    def get_throttles(self):
+        if self.action == "create":
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
 
     def create(self, request, *args, **kwargs):
 
